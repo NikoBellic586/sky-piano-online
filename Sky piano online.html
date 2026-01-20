@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sky 乐器 - 沉浸式增强版</title>
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.15);
+            --accent: #f39c12;
+            --sidebar-bg: rgba(10, 11, 16, 0.96);
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; touch-action: none;
+            background-color: #090a0f;
+            display: flex; align-items: center; justify-content: center;
+            font-family: "Microsoft YaHei", sans-serif;
+            user-select: none;
+        }
+
+        /* 动态背景 */
+        #bgLayer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%);
+            background-size: cover; background-position: center; z-index: -1;
+            transition: background-image 0.5s ease;
+        }
+        #starCanvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
+
+        /* 菜单按钮 */
+        .menu-btn {
+            position: fixed; top: 25px; left: 25px; z-index: 200;
+            width: 32px; height: 24px; cursor: pointer;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .menu-btn span { display: block; width: 100%; height: 3px; background: white; border-radius: 2px; transition: 0.3s; }
+        .menu-btn:hover span { background: var(--accent); }
+
+        /* 侧边栏 */
+        .sidebar {
+            position: fixed; left: -320px; top: 0; width: 300px; height: 100%;
+            background: var(--sidebar-bg); backdrop-filter: blur(25px);
+            border-right: 1px solid var(--border); z-index: 150;
+            display: flex; flex-direction: column;
+            color: #eee; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto; box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        }
+        .sidebar.open { left: 0; }
+        .sidebar-content { padding: 80px 25px 40px 25px; }
+
+        .section-title { color: var(--accent); font-size: 17px; margin: 25px 0 12px 0; font-weight: bold; border-left: 3px solid var(--accent); padding-left: 10px; }
+        .mapping-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; opacity: 0.9; }
+        .key-tag { color: var(--accent); font-family: monospace; font-weight: bold; }
+
+        .action-btn {
+            width: 100%; padding: 12px; background: var(--glass);
+            border: 1px solid var(--border); border-radius: 8px;
+            color: white; cursor: pointer; margin-top: 10px; transition: 0.2s;
+        }
+        .action-btn:hover { border-color: var(--accent); background: rgba(255,255,255,0.1); }
+        .action-btn.active { background: var(--accent); color: #000; font-weight: bold; }
+
+        /* 主容器 */
+        .main-container {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative; z-index: 10;
+        }
+
+        .status-display { 
+            margin-bottom: 30px; background: rgba(0,0,0,0.4); 
+            padding: 10px 30px; border-radius: 50px; 
+            color: #fff; font-size: 14px; border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+        }
+        .status-display b { color: var(--accent); margin: 0 5px; }
+
+        /* 钢琴区 - 尺寸 120px */
+        .piano-grid {
+            background: rgba(255,255,255,0.05); backdrop-filter: blur(20px);
+            padding: 40px; border-radius: 45px; border: 1px solid var(--border);
+            display: flex; flex-direction: column; gap: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+        .row { display: flex; gap: 20px; }
+        .key {
+            width: 120px; height: 120px; background: rgba(255,255,255,0.08);
+            border: 2px solid rgba(255,255,255,0.12); border-radius: 30px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            position: relative; cursor: pointer; transition: all 0.08s ease;
+        }
+        .symbol { width: 55px; height: 55px; border: 5px solid #fff; pointer-events: none; }
+        .circle { border-radius: 50%; } .diamond { transform: rotate(45deg); }
+        .key-hint { position: absolute; bottom: 12px; right: 15px; font-size: 16px; font-weight: bold; opacity: 0.3; font-family: monospace; }
+        
+        .key.active { background: #fff; transform: scale(0.92); box-shadow: 0 0 30px #fff; }
+        .key.active .symbol { border-color: #333; }
+        .key.active .key-hint { color: #333; opacity: 0.8; }
+
+        /* 控制台 */
+        .control-hub {
+            margin-top: 40px; background: rgba(0,0,0,0.5); padding: 15px 40px;
+            border-radius: 25px; border: 1px solid var(--border);
+            display: flex; gap: 60px; color: white; backdrop-filter: blur(10px);
+        }
+        .ctrl-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .ctrl-btns { display: flex; align-items: center; gap: 20px; }
+        .c-btn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--glass); color: white; cursor: pointer; font-size: 20px; transition: 0.2s; }
+        .c-btn:active { transform: scale(0.9); }
+        .c-btn.active-sharp { background: #e74c3c; border-color: #e74c3c; box-shadow: 0 0 15px #e74c3c; }
+        .c-btn.active-flat { background: #3498db; border-color: #3498db; box-shadow: 0 0 15px #3498db; }
+
+        @media (max-width: 800px) or (max-height: 800px) { .piano-grid { transform: scale(0.7); } }
+        @media (max-width: 600px) or (max-height: 600px) { .piano-grid { transform: scale(0.5); } }
+    </style>
+</head>
+<body>
+
+<div id="bgLayer"></div>
+<canvas id="starCanvas"></canvas>
+
+<div class="menu-btn" onclick="toggleSidebar()">
+    <span></span><span></span><span></span>
+</div>
+
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-content">
+        <div class="section-title" style="margin-top:0">使用说明</div>
+        <p style="font-size:13px; opacity:0.7">映射：Y-P, H-;, N-/</p>
+        
+        <div class="section-title">变调模式控制</div>
+        <p style="font-size:12px; opacity:0.6">当前：<span id="mode-text" style="color:var(--accent)">保持模式 (松开恢复)</span></p>
+        <button id="modeBtn" class="action-btn active" onclick="toggleModMode()">切换为：点击开关</button>
+
+        <div class="section-title">功能键</div>
+        <div class="mapping-row"><span>升/降八度</span><span class="key-tag">Alt / Space</span></div>
+        <div class="mapping-row"><span>变调(♯/♭)</span><span class="key-tag">' / G</span></div>
+        
+        <div class="section-title">外观</div>
+        <button class="action-btn" onclick="document.getElementById('fileIn').click()">上传图片</button>
+        <input type="file" id="fileIn" hidden accept="image/*" onchange="loadBg(this)">
+        <button class="action-btn" onclick="resetBg()" style="background:none; border-style:dashed">还原默认</button>
+    </div>
+</div>
+
+<div class="main-container">
+    <div class="status-display">
+        八度 <b>[ <span id="oct-v">0</span> ]</b> 
+        变调 <b>[ <span id="mod-v">无</span> ]</b>
+        模式 <b>[ <span id="mode-status">保持</span> ]</b>
+    </div>
+
+    <div class="piano-grid">
+        <div class="row" id="row1"></div>
+        <div class="row" id="row2"></div>
+        <div class="row" id="row3"></div>
+    </div>
+
+    <div class="control-hub">
+        <div class="ctrl-item">
+            <span style="font-size:11px; opacity:0.5; letter-spacing:1px">八度控制</span>
+            <div class="ctrl-btns">
+                <button class="c-btn" onclick="changeOct(-1)">−</button>
+                <b id="oct-v2" style="color:var(--accent); min-width:20px; text-align:center; font-size:20px">0</b>
+                <button class="c-btn" onclick="changeOct(1)">+</button>
+            </div>
+        </div>
+        <div class="ctrl-item">
+            <span style="font-size:11px; opacity:0.5; letter-spacing:1px">临时变调</span>
+            <div class="ctrl-btns">
+                <button class="c-btn" id="m-flat" onclick="setMod(-1)">♭</button>
+                <button class="c-btn" id="m-sharp" onclick="setMod(1)">♯</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+    window.addEventListener('mousedown', (e) => {
+        const sb = document.getElementById('sidebar');
+        if (sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('.menu-btn')) toggleSidebar();
+    });
+
+    let octave = 0, modifier = 0;
+    let modMode = 'hold'; // 'hold' (保持模式) 或 'toggle' (切换模式)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [
+        {f: 261.63, b: 'y', s: 'diamond'}, {f: 293.66, b: 'u', s: 'circle'}, {f: 329.63, b: 'i', s: 'circle'}, {f: 349.23, b: 'o', s: 'circle'}, {f: 392.00, b: 'p', s: 'circle'},
+        {f: 440.00, b: 'h', s: 'circle'}, {f: 493.88, b: 'j', s: 'circle'}, {f: 523.25, b: 'k', s: 'diamond'}, {f: 587.33, b: 'l', s: 'circle'}, {f: 659.25, b: ';', s: 'circle'},
+        {f: 698.46, b: 'n', s: 'circle'}, {f: 783.99, b: 'm', s: 'circle'}, {f: 880.00, b: ',', s: 'circle'}, {f: 987.77, b: '.', s: 'circle'}, {f: 1046.50, b: '/', s: 'diamond'}
+    ];
+
+    const keyMap = {};
+    notes.forEach((n, i) => {
+        const rowIdx = Math.floor(i / 5) + 1;
+        const keyEl = document.createElement('div');
+        keyEl.className = 'key';
+        keyEl.innerHTML = `<div class="symbol ${n.s}"></div><span class="key-hint">${n.b.toUpperCase()}</span>`;
+        const trigger = (e) => { e.preventDefault(); play(n.f, keyEl); };
+        keyEl.addEventListener('mousedown', trigger);
+        keyEl.addEventListener('touchstart', trigger);
+        document.getElementById('row' + rowIdx).appendChild(keyEl);
+        keyMap[n.b] = keyEl;
+    });
+
+    function play(base, el) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const freq = base * Math.pow(2, octave) * Math.pow(2, modifier / 12);
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 1.2);
+        el.classList.add('active');
+        setTimeout(() => el.classList.remove('active'), 100);
+    }
+
+    function changeOct(v) { 
+        octave += v; 
+        const t = octave > 0 ? '+'+octave : octave;
+        document.getElementById('oct-v').innerText = t;
+        document.getElementById('oct-v2').innerText = t;
+    }
+
+    function setMod(v, isAutoRelease = false) {
+        if (modMode === 'toggle' && !isAutoRelease) {
+            modifier = (modifier === v) ? 0 : v;
+        } else {
+            modifier = v;
+        }
+        updateModUI();
+    }
+
+    function updateModUI() {
+        document.getElementById('m-sharp').classList.toggle('active-sharp', modifier === 1);
+        document.getElementById('m-flat').classList.toggle('active-flat', modifier === -1);
+        document.getElementById('mod-v').innerText = modifier === 1 ? "升半音" : (modifier === -1 ? "降半音" : "无");
+    }
+
+    function toggleModMode() {
+        modMode = (modMode === 'hold') ? 'toggle' : 'hold';
+        const isHold = modMode === 'hold';
+        document.getElementById('mode-text').innerText = isHold ? "保持模式 (松开恢复)" : "开关模式 (点击切换)";
+        document.getElementById('modeBtn').innerText = isHold ? "切换为：点击开关" : "切换为：保持模式";
+        document.getElementById('mode-status').innerText = isHold ? "保持" : "开关";
+        setMod(0); // 切换模式时重置变调
+    }
+
+    function loadBg(input) {
+        if (input.files && input.files[0]) {
+            const r = new FileReader();
+            r.onload = (e) => document.getElementById('bgLayer').style.backgroundImage = `url(${e.target.result})`;
+            r.readAsDataURL(input.files[0]);
+        }
+    }
+    function resetBg() { document.getElementById('bgLayer').style.backgroundImage = "radial-gradient(circle at center, #1b2735 0%, #090a0f 100%)"; }
+
+    window.onkeydown = (e) => {
+        if (e.key === 'Alt') { e.preventDefault(); if(!e.repeat) changeOct(1); return; }
+        if (e.code === 'Space') { e.preventDefault(); if(!e.repeat) changeOct(-1); return; }
+        if (e.key.toLowerCase() === 'g') { if(!e.repeat) setMod(-1); return; }
+        if (e.key === "'") { if(!e.repeat) setMod(1); return; }
+        const m = {':':';','<':',','>':'.','?':'/'};
+        const k = m[e.key] || e.key.toLowerCase();
+        if (keyMap[k] && !e.repeat) keyMap[k].dispatchEvent(new Event('mousedown'));
+    };
+
+    window.onkeyup = (e) => {
+        if (modMode === 'hold') {
+            if (e.key.toLowerCase() === 'g' || e.key === "'") {
+                setMod(0, true);
+            }
+        }
+    };
+
+    const canvas = document.getElementById('starCanvas');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+    function init() {
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        stars = Array.from({length: 100}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*1.5, sp: Math.random()*0.05+0.01}));
+    }
+    function animate() {
+        ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle = "rgba(255,255,255,0.4)";
+        stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); s.y -= s.sp; if(s.y < 0) s.y = canvas.height; });
+        requestAnimationFrame(animate);
+    }
+    window.onresize = init; init(); animate();
+</script>
+</body>
+</html>
