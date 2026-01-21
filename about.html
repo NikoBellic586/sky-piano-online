@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Sky 乐器 - 移动适配版</title>
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.15);
+            --accent: #f39c12;
+            --sidebar-bg: rgba(10, 11, 16, 0.96);
+            /* 动态按键尺寸：在横屏下根据高度自动缩放 */
+            --key-size: min(15vw, 22vh); 
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; touch-action: none;
+            background-color: #090a0f;
+            display: flex; align-items: center; justify-content: center;
+            font-family: "Microsoft YaHei", sans-serif;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        /* 背景与画布 */
+        #bgLayer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%);
+            z-index: -1;
+        }
+        #starCanvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
+
+        /* 菜单与侧边栏 */
+        .menu-btn {
+            position: fixed; top: 20px; left: 20px; z-index: 200;
+            width: 30px; height: 22px; cursor: pointer;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .menu-btn span { display: block; width: 100%; height: 3px; background: white; border-radius: 2px; }
+
+        .sidebar {
+            position: fixed; left: -320px; top: 0; width: 280px; height: 100%;
+            background: var(--sidebar-bg); backdrop-filter: blur(25px);
+            border-right: 1px solid var(--border); z-index: 150;
+            transition: 0.4s; overflow-y: auto; color: #eee;
+        }
+        .sidebar.open { left: 0; }
+        .sidebar-content { padding: 60px 20px; }
+
+        /* 主容器 */
+        .main-container {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding-top: 20px;
+        }
+
+        /* 钢琴区适配 */
+        .piano-grid {
+            display: flex; flex-direction: column; gap: 12px;
+            padding: 20px; border-radius: 20px;
+            background: rgba(255,255,255,0.03);
+        }
+        .row { display: flex; gap: 12px; justify-content: center; }
+        
+        .key {
+            width: var(--key-size); height: var(--key-size);
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 18%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            position: relative; transition: transform 0.05s;
+            touch-action: manipulation;
+        }
+        .symbol { width: 40%; height: 40%; border: 3px solid #fff; pointer-events: none; }
+        .circle { border-radius: 50%; } 
+        .diamond { transform: rotate(45deg); }
+        .key-hint { position: absolute; bottom: 8%; right: 10%; font-size: 12px; opacity: 0.4; }
+        
+        .key.active { background: #fff; transform: scale(0.9); }
+        .key.active .symbol { border-color: #333; }
+
+        /* 全屏与控制按钮 */
+        .mobile-controls {
+            position: fixed; top: 20px; right: 20px; display: flex; gap: 10px;
+        }
+        .icon-btn {
+            background: var(--glass); border: 1px solid var(--border);
+            color: white; padding: 8px 15px; border-radius: 10px; font-size: 12px;
+        }
+
+        .action-btn { width: 100%; padding: 12px; margin-top: 10px; background: var(--glass); border: 1px solid var(--border); color: #fff; border-radius: 8px; }
+
+        @media (max-height: 400px) {
+            .piano-grid { gap: 8px; }
+            .key { border-radius: 12px; }
+            .mobile-controls { top: 10px; right: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="bgLayer"></div>
+<canvas id="starCanvas"></canvas>
+
+<div class="mobile-controls">
+    <button class="icon-btn" onclick="toggleFullscreen()">全屏模式</button>
+</div>
+
+<div class="menu-btn" onclick="toggleSidebar()">
+    <span></span><span></span><span></span>
+</div>
+
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-content">
+        <h3 style="color:var(--accent)">设置</h3>
+        <button class="action-btn" onclick="changeOct(1)">升八度</button>
+        <button class="action-btn" onclick="changeOct(-1)">降八度</button>
+        <button class="action-btn" onclick="resetBg()">重置背景</button>
+        <div style="margin-top:20px; font-size:12px; opacity:0.6;">
+            提示：建议使用横屏以获得最佳按键布局。
+        </div>
+    </div>
+</div>
+
+<div class="main-container">
+    <div class="piano-grid">
+        <div class="row" id="row1"></div>
+        <div class="row" id="row2"></div>
+        <div class="row" id="row3"></div>
+    </div>
+</div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let octave = 0;
+    const notes = [
+        {f: 261.63, b: 'y', s: 'diamond'}, {f: 293.66, b: 'u', s: 'circle'}, {f: 329.63, b: 'i', s: 'circle'}, {f: 349.23, b: 'o', s: 'circle'}, {f: 392.00, b: 'p', s: 'circle'},
+        {f: 440.00, b: 'h', s: 'circle'}, {f: 493.88, b: 'j', s: 'circle'}, {f: 523.25, b: 'k', s: 'diamond'}, {f: 587.33, b: 'l', s: 'circle'}, {f: 659.25, b: ';', s: 'circle'},
+        {f: 698.46, b: 'n', s: 'circle'}, {f: 783.99, b: 'm', s: 'circle'}, {f: 880.00, b: ',', s: 'circle'}, {f: 987.77, b: '.', s: 'circle'}, {f: 1046.50, b: '/', s: 'diamond'}
+    ];
+
+    const keyMap = {};
+    notes.forEach((n, i) => {
+        const rowIdx = Math.floor(i / 5) + 1;
+        const keyEl = document.createElement('div');
+        keyEl.className = 'key';
+        keyEl.innerHTML = `<div class="symbol ${n.s}"></div><span class="key-hint">${n.b.toUpperCase()}</span>`;
+        
+        const handlePlay = (e) => {
+            e.preventDefault();
+            playNote(n.f, keyEl);
+        };
+        keyEl.addEventListener('touchstart', handlePlay, {passive: false});
+        keyEl.addEventListener('mousedown', handlePlay);
+        
+        document.getElementById('row' + rowIdx).appendChild(keyEl);
+        keyMap[n.b] = keyEl;
+    });
+
+    function playNote(base, el) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const freq = base * Math.pow(2, octave);
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 1.2);
+        el.classList.add('active');
+        setTimeout(() => el.classList.remove('active'), 100);
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().then(() => {
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+    function changeOct(v) { octave = Math.max(-2, Math.min(2, octave + v)); }
+    function resetBg() { document.getElementById('bgLayer').style.backgroundImage = ""; }
+
+    const canvas = document.getElementById('starCanvas');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+    function init() {
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        stars = Array.from({length: 50}, () => ({
+            x: Math.random()*canvas.width, 
+            y: Math.random()*canvas.height, 
+            s: Math.random()*2, 
+            sp: Math.random()*0.2
+        }));
+    }
+    function animate() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        stars.forEach(s => {
+            ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill();
+            s.y -= s.sp; if(s.y < 0) s.y = canvas.height;
+        });
+        requestAnimationFrame(animate);
+    }
+    window.addEventListener('resize', init);
+    init(); animate();
+</script>
+</body>
+</html>
