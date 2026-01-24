@@ -23,10 +23,16 @@
 
         /* 动态背景 */
         #bgLayer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%);
-            background-size: cover; background-position: center; z-index: -1;
-            transition: background-image 0.5s ease;
+             position: absolute;
+             top: 0; left: 0;
+             width: 100%; height: 100%;
+             /* 核心修复：确保图片覆盖模式 */
+             background-size: cover; 
+             background-position: center;
+             background-repeat: no-repeat;
+             background-attachment: fixed;
+             z-index: -1;
+             transition: background-image 0.8s ease-in-out; /* 让切换更丝滑 */
         }
         #starCanvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
 
@@ -115,6 +121,30 @@
 
         @media (max-width: 800px) or (max-height: 800px) { .piano-grid { transform: scale(0.7); } }
         @media (max-width: 600px) or (max-height: 600px) { .piano-grid { transform: scale(0.5); } }
+        /* 自定义侧边栏滚动条 */
+        .sidebar::-webkit-scrollbar {
+            width: 4px; /* 极细的宽度 */
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent; /* 轨道透明 */
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1); /* 默认半透明灰色 */
+            border-radius: 10px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: var(--accent); /* 鼠标悬停时变橙色，增加反馈感 */
+        }
+        
+        /* 兼容 Firefox */
+        .sidebar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+        }
+
     </style>
 </head>
 <body>
@@ -257,13 +287,39 @@
     }
 
     function loadBg(input) {
-        if (input.files && input.files[0]) {
-            const r = new FileReader();
-            r.onload = (e) => document.getElementById('bgLayer').style.backgroundImage = `url(${e.target.result})`;
-            r.readAsDataURL(input.files[0]);
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        
+        // 增加文件大小简单检查（可选，防止超大图导致卡顿）
+        if (file.size > 10 * 1024 * 1024) {
+            alert("图片太大了，请选择 10MB 以内的图片");
+            return;
         }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const bgLayer = document.getElementById('bgLayer');
+            // 确保移除可能干扰的渐变背景，直接应用图片
+            bgLayer.style.backgroundImage = `url(${e.target.result})`;
+            
+            // 修复某些浏览器下 z-index 渲染问题
+            bgLayer.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+        
+        // 【核心修复】上传完成后清空 input 的值
+        // 这样如果你删除了背景，再次上传同一张图时，onchange 依然会触发
+        input.value = '';
     }
-    function resetBg() { document.getElementById('bgLayer').style.backgroundImage = "radial-gradient(circle at center, #1b2735 0%, #090a0f 100%)"; }
+}
+
+    function resetBg() {
+        const bgLayer = document.getElementById('bgLayer');
+        // 还原为默认的星空渐变色
+        bgLayer.style.backgroundImage = "radial-gradient(circle at center, #1b2735 0%, #090a0f 100%)";
+        // 同时清空文件选择器，防止逻辑冲突
+        document.getElementById('fileIn').value = '';
+    }
 
     window.onkeydown = (e) => {
         if (e.key === 'Alt') { e.preventDefault(); if(!e.repeat) changeOct(1); return; }
