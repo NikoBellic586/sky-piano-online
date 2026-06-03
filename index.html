@@ -321,4 +321,103 @@
             }
 
             g.gain.setValueAtTime(volume, now);
-            g.gain.exponentialRamp
+            g.gain.exponentialRampToValueAtTime(0.001, now + decay);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(); 
+            osc.stop(now + decay);
+        }
+
+        el.classList.add('active');
+        setTimeout(() => el.classList.remove('active'), 100);
+    }
+
+    function changeOct(v) { 
+        octave += v; 
+        const t = octave > 0 ? '+'+octave : octave;
+        document.getElementById('oct-v').innerText = t;
+        document.getElementById('oct-v2').innerText = t;
+    }
+
+    function setMod(v, isAutoRelease = false) {
+        if (modMode === 'toggle' && !isAutoRelease) {
+            modifier = (modifier === v) ? 0 : v;
+        } else {
+            modifier = v;
+        }
+        updateModUI();
+    }
+
+    function updateModUI() {
+        document.getElementById('m-sharp').classList.toggle('active-sharp', modifier === 1);
+        document.getElementById('m-flat').classList.toggle('active-flat', modifier === -1);
+        document.getElementById('mod-v').innerText = modifier === 1 ? "升半音" : (modifier === -1 ? "降半音" : "无");
+    }
+
+    function toggleModMode() {
+        modMode = (modMode === 'hold') ? 'toggle' : 'hold';
+        const isHold = modMode === 'hold';
+        document.getElementById('mode-text').innerText = isHold ? "保持模式 (松开恢复)" : "开关模式 (点击切换)";
+        document.getElementById('modeBtn').innerText = isHold ? "切换为：点击开关" : "切换为：保持模式";
+        document.getElementById('mode-status').innerText = isHold ? "保持" : "开关";
+        setMod(0);
+    }
+
+    function loadBg(input) {
+        if (input.files && input.files[0]) {
+            const file = input.files[0];
+            if (file.size > 10 * 1024 * 1024) {
+                alert("图片太大了，请选择 10MB 以内的图片");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const bgLayer = document.getElementById('bgLayer');
+                bgLayer.style.backgroundImage = `url(${e.target.result})`;
+                bgLayer.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            input.value = '';
+        }
+    }
+
+    function resetBg() {
+        const bgLayer = document.getElementById('bgLayer');
+        bgLayer.style.backgroundImage = "radial-gradient(circle at center, #1b2735 0%, #090a0f 100%)";
+        document.getElementById('fileIn').value = '';
+    }
+
+    window.onkeydown = (e) => {
+        if (e.key === 'Alt') { e.preventDefault(); if(!e.repeat) changeOct(1); return; }
+        if (e.code === 'Space') { e.preventDefault(); if(!e.repeat) changeOct(-1); return; }
+        if (e.key.toLowerCase() === 'g') { if(!e.repeat) setMod(-1); return; }
+        if (e.key === "'") { if(!e.repeat) setMod(1); return; }
+        const m = {':':';','<':',','>':'.','?':'/'};
+        const k = m[e.key] || e.key.toLowerCase();
+        if (keyMap[k] && !e.repeat) keyMap[k].dispatchEvent(new Event('mousedown'));
+    };
+
+    window.onkeyup = (e) => {
+        if (modMode === 'hold') {
+            if (e.key.toLowerCase() === 'g' || e.key === "'") {
+                setMod(0, true);
+            }
+        }
+    };
+
+    const canvas = document.getElementById('starCanvas');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+    function init() {
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        stars = Array.from({length: 100}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*1.5, sp: Math.random()*0.05+0.01}));
+    }
+    function animate() {
+        ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle = "rgba(255,255,255,0.4)";
+        stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); s.y -= s.sp; if(s.y < 0) s.y = canvas.height; });
+        requestAnimationFrame(animate);
+    }
+    window.onresize = init; init(); animate();
+</script>
+</body>
+</html>
