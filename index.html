@@ -226,7 +226,7 @@
     let timbre = 'triangle'; // 默认音色
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
-    // 【修复 2】强制与 HTML 下拉框当前实际选中的音色同步（防止浏览器刷新缓存导致变量不一致）
+    // 强制与 HTML 下拉框当前实际选中的音色同步（防止浏览器刷新缓存导致变量不一致）
     const selectEl = document.getElementById('timbreSelect');
     if (selectEl) {
         timbre = selectEl.value;
@@ -274,7 +274,7 @@
             g1.gain.exponentialRampToValueAtTime(0.001, now + 1.4); 
             osc1.connect(g1);
             g1.connect(audioCtx.destination);
-            osc1.start(); // 【修复 1】不传参数，让浏览器在激活时自动立即播放，防止 0 时间冲突
+            osc1.start(); // 不传参数防止 initial suspended 0 时间冲突
             osc1.stop(now + 1.4);
 
             // 2. 琴弦高频共鸣（泛音：正弦波，高八度）
@@ -286,7 +286,7 @@
             g2.gain.exponentialRampToValueAtTime(0.001, now + 0.7); 
             osc2.connect(g2);
             g2.connect(audioCtx.destination);
-            osc2.start(); // 【修复 1】不传参数
+            osc2.start(); 
             osc2.stop(now + 0.7);
 
             // 3. 琴槌击弦瞬态模拟（极短的高频金属敲击声）
@@ -298,7 +298,7 @@
             gClick.gain.exponentialRampToValueAtTime(0.001, now + 0.04); 
             oscClick.connect(gClick);
             gClick.connect(audioCtx.destination);
-            oscClick.start(); // 【修复 1】不传参数
+            oscClick.start(); 
             oscClick.stop(now + 0.05);
 
         } else {
@@ -321,79 +321,4 @@
             }
 
             g.gain.setValueAtTime(volume, now);
-            g.gain.exponentialRampToValueAtTime(0.001, now + decay);
-            osc.connect(g); g.connect(audioCtx.destination);
-            osc.start(); // 【修复 1】不传参数
-            osc.stop(now + decay);
-        }
-
-        el.classList.add('active');
-        setTimeout(() => el.classList.remove('active'), 100);
-    }
-
-    function changeOct(v) { 
-        octave += v; 
-        const t = octave > 0 ? '+'+octave : octave;
-        document.getElementById('oct-v').innerText = t;
-        document.getElementById('oct-v2').innerText = t;
-    }
-
-    function setMod(v, isAutoRelease = false) {
-        if (modMode === 'toggle' && !isAutoRelease) {
-            modifier = (modifier === v) ? 0 : v;
-        } else {
-            modifier = v;
-        }
-        updateModUI();
-    }
-
-    function updateModUI() {
-        document.getElementById('m-sharp').classList.toggle('active-sharp', modifier === 1);
-        document.getElementById('m-flat').classList.toggle('active-flat', modifier === -1);
-        document.getElementById('mod-v').innerText = modifier === 1 ? "升半音" : (modifier === -1 ? "降半音" : "无");
-    }
-
-    function toggleModMode() {
-        modMode = (modMode === 'hold') ? 'toggle' : 'hold';
-        const isHold = modMode === 'hold';
-        document.getElementById('mode-text').innerText = isHold ? "保持模式 (松开恢复)" : "开关模式 (点击切换)";
-        document.getElementById('modeBtn').innerText = isHold ? "切换为：点击开关" : "切换为：保持模式";
-        document.getElementById('mode-status').innerText = isHold ? "保持" : "开关";
-        setMod(0);
-    }
-
-    function loadBg(input) {
-        if (input.files && input.files[0]) {
-            const file = input.files[0];
-            if (file.size > 10 * 1024 * 1024) {
-                alert("图片太大了，请选择 10MB 以内的图片");
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const bgLayer = document.getElementById('bgLayer');
-                bgLayer.style.backgroundImage = `url(${e.target.result})`;
-                bgLayer.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-            input.value = '';
-        }
-    }
-
-    function resetBg() {
-        const bgLayer = document.getElementById('bgLayer');
-        bgLayer.style.backgroundImage = "radial-gradient(circle at center, #1b2735 0%, #090a0f 100%)";
-        document.getElementById('fileIn').value = '';
-    }
-
-    window.onkeydown = (e) => {
-        if (e.key === 'Alt') { e.preventDefault(); if(!e.repeat) changeOct(1); return; }
-        if (e.code === 'Space') { e.preventDefault(); if(!e.repeat) changeOct(-1); return; }
-        if (e.key.toLowerCase() === 'g') { if(!e.repeat) setMod(-1); return; }
-        if (e.key === "'") { if(!e.repeat) setMod(1); return; }
-        const m = {':':';','<':',','>':'.','?':'/'};
-        const k = m[e.key] || e.key.toLower
-</script>
-</body>
-</html>
+            g.gain.exponentialRamp
