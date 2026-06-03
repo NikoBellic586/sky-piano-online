@@ -223,8 +223,14 @@
 
     let octave = 0, modifier = 0;
     let modMode = 'hold'; // 'hold' (保持模式) 或 'toggle' (切换模式)
-    let timbre = 'triangle'; // 默认钢琴音色
+    let timbre = 'triangle'; // 默认音色
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // 【修复 2】强制与 HTML 下拉框当前实际选中的音色同步（防止浏览器刷新缓存导致变量不一致）
+    const selectEl = document.getElementById('timbreSelect');
+    if (selectEl) {
+        timbre = selectEl.value;
+    }
     
     function changeTimbre(val) {
         timbre = val;
@@ -265,34 +271,34 @@
             osc1.type = 'triangle';
             osc1.frequency.setValueAtTime(freq, now);
             g1.gain.setValueAtTime(0.35, now);
-            g1.gain.exponentialRampToValueAtTime(0.001, now + 1.4); // 较长的自然衰减
+            g1.gain.exponentialRampToValueAtTime(0.001, now + 1.4); 
             osc1.connect(g1);
             g1.connect(audioCtx.destination);
-            osc1.start(now);
+            osc1.start(); // 【修复 1】不传参数，让浏览器在激活时自动立即播放，防止 0 时间冲突
             osc1.stop(now + 1.4);
 
             // 2. 琴弦高频共鸣（泛音：正弦波，高八度）
             const osc2 = audioCtx.createOscillator();
             const g2 = audioCtx.createGain();
             osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(freq * 2, now); // 倍频
-            g2.gain.setValueAtTime(0.12, now); // 音量较小，作点缀
-            g2.gain.exponentialRampToValueAtTime(0.001, now + 0.7); // 泛音衰减较快
+            osc2.frequency.setValueAtTime(freq * 2, now); 
+            g2.gain.setValueAtTime(0.12, now); 
+            g2.gain.exponentialRampToValueAtTime(0.001, now + 0.7); 
             osc2.connect(g2);
             g2.connect(audioCtx.destination);
-            osc2.start(now);
+            osc2.start(); // 【修复 1】不传参数
             osc2.stop(now + 0.7);
 
             // 3. 琴槌击弦瞬态模拟（极短的高频金属敲击声）
             const oscClick = audioCtx.createOscillator();
             const gClick = audioCtx.createGain();
             oscClick.type = 'sine';
-            oscClick.frequency.setValueAtTime(freq * 3.5, now); // 非谐和极高频
+            oscClick.frequency.setValueAtTime(freq * 3.5, now); 
             gClick.gain.setValueAtTime(0.18, now);
-            gClick.gain.exponentialRampToValueAtTime(0.001, now + 0.04); // 仅持续 40 毫秒
+            gClick.gain.exponentialRampToValueAtTime(0.001, now + 0.04); 
             oscClick.connect(gClick);
             gClick.connect(audioCtx.destination);
-            oscClick.start(now);
+            oscClick.start(); // 【修复 1】不传参数
             oscClick.stop(now + 0.05);
 
         } else {
@@ -317,7 +323,8 @@
             g.gain.setValueAtTime(volume, now);
             g.gain.exponentialRampToValueAtTime(0.001, now + decay);
             osc.connect(g); g.connect(audioCtx.destination);
-            osc.start(now); osc.stop(now + decay);
+            osc.start(); // 【修复 1】不传参数
+            osc.stop(now + decay);
         }
 
         el.classList.add('active');
@@ -386,31 +393,7 @@
         if (e.key.toLowerCase() === 'g') { if(!e.repeat) setMod(-1); return; }
         if (e.key === "'") { if(!e.repeat) setMod(1); return; }
         const m = {':':';','<':',','>':'.','?':'/'};
-        const k = m[e.key] || e.key.toLowerCase();
-        if (keyMap[k] && !e.repeat) keyMap[k].dispatchEvent(new Event('mousedown'));
-    };
-
-    window.onkeyup = (e) => {
-        if (modMode === 'hold') {
-            if (e.key.toLowerCase() === 'g' || e.key === "'") {
-                setMod(0, true);
-            }
-        }
-    };
-
-    const canvas = document.getElementById('starCanvas');
-    const ctx = canvas.getContext('2d');
-    let stars = [];
-    function init() {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        stars = Array.from({length: 100}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*1.5, sp: Math.random()*0.05+0.01}));
-    }
-    function animate() {
-        ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle = "rgba(255,255,255,0.4)";
-        stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); s.y -= s.sp; if(s.y < 0) s.y = canvas.height; });
-        requestAnimationFrame(animate);
-    }
-    window.onresize = init; init(); animate();
+        const k = m[e.key] || e.key.toLower
 </script>
 </body>
 </html>
