@@ -165,7 +165,17 @@
         <p style="font-size:12px; opacity:0.6">当前：<span id="mode-text" style="color:var(--accent)">保持模式 (松开恢复)</span></p>
         <button id="modeBtn" class="action-btn active" onclick="toggleModMode()">切换为：点击开关</button>
 
+        <!-- 新增：音色选择 -->
+        <div class="section-title">音色选择</div>
+        <select id="timbreSelect" class="action-btn" onchange="changeTimbre(this.value)" style="background: var(--sidebar-bg); color: white; border: 1px solid var(--border); outline: none;">
+            <option value="triangle" selected>🎹 默认钢琴 (三角波)</option>
+            <option value="sine">🎵 八音盒/长笛 (正弦波)</option>
+            <option value="sawtooth">🎻 电子弦乐 (锯齿波)</option>
+            <option value="square">👾 复古电玩 (方波)</option>
+        </select>
+
         <div class="section-title">功能键</div>
+        
         <div class="mapping-row"><span>升/降八度</span><span class="key-tag">Alt / Space</span></div>
         <div class="mapping-row"><span>变调(♯/♭)</span><span class="key-tag">' / G</span></div>
         
