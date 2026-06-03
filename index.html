@@ -252,27 +252,74 @@
     function play(base, el) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const freq = base * Math.pow(2, octave) * Math.pow(2, modifier / 12);
-        const osc = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        
-        osc.type = timbre; // 使用选中的波形音色
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        
-        // 微调不同波形下的音量和衰减时间，防止锯齿波/方波爆音破音
-        let volume = 0.4;
-        let decay = 1.2;
-        if (timbre === 'square' || timbre === 'sawtooth') {
-            volume = 0.12; 
-            decay = 1.0;   
-        } else if (timbre === 'sine') {
-            volume = 0.55; 
-            decay = 1.4;   
+        const now = audioCtx.currentTime;
+
+        if (timbre === 'triangle') {
+            // =======================================================
+            // 🎹 增强版钢琴音色：加法合成 + 琴槌瞬态敲击模拟
+            // =======================================================
+
+            // 1. 主琴弦音（基波：三角波）
+            const osc1 = audioCtx.createOscillator();
+            const g1 = audioCtx.createGain();
+            osc1.type = 'triangle';
+            osc1.frequency.setValueAtTime(freq, now);
+            g1.gain.setValueAtTime(0.35, now);
+            g1.gain.exponentialRampToValueAtTime(0.001, now + 1.4); // 较长的自然衰减
+            osc1.connect(g1);
+            g1.connect(audioCtx.destination);
+            osc1.start(now);
+            osc1.stop(now + 1.4);
+
+            // 2. 琴弦高频共鸣（泛音：正弦波，高八度）
+            const osc2 = audioCtx.createOscillator();
+            const g2 = audioCtx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(freq * 2, now); // 倍频
+            g2.gain.setValueAtTime(0.12, now); // 音量较小，作点缀
+            g2.gain.exponentialRampToValueAtTime(0.001, now + 0.7); // 泛音衰减较快
+            osc2.connect(g2);
+            g2.connect(audioCtx.destination);
+            osc2.start(now);
+            osc2.stop(now + 0.7);
+
+            // 3. 琴槌击弦瞬态模拟（极短的高频金属敲击声）
+            const oscClick = audioCtx.createOscillator();
+            const gClick = audioCtx.createGain();
+            oscClick.type = 'sine';
+            oscClick.frequency.setValueAtTime(freq * 3.5, now); // 非谐和极高频
+            gClick.gain.setValueAtTime(0.18, now);
+            gClick.gain.exponentialRampToValueAtTime(0.001, now + 0.04); // 仅持续 40 毫秒
+            oscClick.connect(gClick);
+            gClick.connect(audioCtx.destination);
+            oscClick.start(now);
+            oscClick.stop(now + 0.05);
+
+        } else {
+            // =======================================================
+            // 其他基础合成器音色保持单振荡器
+            // =======================================================
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = timbre;
+            osc.frequency.setValueAtTime(freq, now);
+
+            let volume = 0.4;
+            let decay = 1.2;
+            if (timbre === 'square' || timbre === 'sawtooth') {
+                volume = 0.12; 
+                decay = 1.0;   
+            } else if (timbre === 'sine') {
+                volume = 0.55; 
+                decay = 1.4;   
+            }
+
+            g.gain.setValueAtTime(volume, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + decay);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + decay);
         }
 
-        g.gain.setValueAtTime(volume, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + decay);
-        osc.connect(g); g.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + decay);
         el.classList.add('active');
         setTimeout(() => el.classList.remove('active'), 100);
     }
