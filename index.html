@@ -236,7 +236,7 @@
         {f: 440.00, b: 'h', s: 'circle'}, {f: 493.88, b: 'j', s: 'circle'}, {f: 523.25, b: 'k', s: 'diamond'}, {f: 587.33, b: 'l', s: 'circle'}, {f: 659.25, b: ';', s: 'circle'},
         {f: 698.46, b: 'n', s: 'circle'}, {f: 783.99, b: 'm', s: 'circle'}, {f: 880.00, b: ',', s: 'circle'}, {f: 987.77, b: '.', s: 'circle'}, {f: 1046.50, b: '/', s: 'diamond'}
     ];
-
+    
     const keyMap = {};
     notes.forEach((n, i) => {
         const rowIdx = Math.floor(i / 5) + 1;
@@ -249,22 +249,36 @@
         document.getElementById('row' + rowIdx).appendChild(keyEl);
         keyMap[n.b] = keyEl;
     });
-
+    function changeTimbre(val) {
+        timbre = val;
+    }
     function play(base, el) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const freq = base * Math.pow(2, octave) * Math.pow(2, modifier / 12);
         const osc = audioCtx.createOscillator();
         const g = audioCtx.createGain();
-        osc.type = 'triangle';
+        
+        osc.type = timbre; // 修改：动态使用用户选择的音色
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        g.gain.setValueAtTime(0.4, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+        
+        // 新增：根据不同波形微调音量，防止复古电玩或弦乐音色破音
+        let volume = 0.4;
+        let decay = 1.2;
+        if (timbre === 'square' || timbre === 'sawtooth') {
+            volume = 0.12; // 降低锯齿波与方波的音量
+            decay = 1.0;   // 稍微缩短余音
+        } else if (timbre === 'sine') {
+            volume = 0.55; // 适当调大正弦波（八音盒）的音量
+            decay = 1.4;   // 稍微拉长余音，听起来更空灵
+        }
+
+        g.gain.setValueAtTime(volume, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + decay);
         osc.connect(g); g.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 1.2);
+        osc.start(); osc.stop(audioCtx.currentTime + decay);
         el.classList.add('active');
         setTimeout(() => el.classList.remove('active'), 100);
     }
-
     function changeOct(v) { 
         octave += v; 
         const t = octave > 0 ? '+'+octave : octave;
