@@ -26,12 +26,13 @@
              position: absolute;
              top: 0; left: 0;
              width: 100%; height: 100%;
+             /* 核心修复：确保图片覆盖模式 */
              background-size: cover; 
              background-position: center;
              background-repeat: no-repeat;
              background-attachment: fixed;
              z-index: -1;
-             transition: background-image 0.8s ease-in-out;
+             transition: background-image 0.8s ease-in-out; /* 让切换更丝滑 */
         }
         #starCanvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
 
@@ -83,7 +84,7 @@
         }
         .status-display b { color: var(--accent); margin: 0 5px; }
 
-        /* 钢琴区 */
+        /* 钢琴区 - 尺寸 120px */
         .piano-grid {
             background: rgba(255,255,255,0.05); backdrop-filter: blur(20px);
             padding: 40px; border-radius: 45px; border: 1px solid var(--border);
@@ -120,25 +121,30 @@
 
         @media (max-width: 800px) or (max-height: 800px) { .piano-grid { transform: scale(0.7); } }
         @media (max-width: 600px) or (max-height: 600px) { .piano-grid { transform: scale(0.5); } }
-        
         /* 自定义侧边栏滚动条 */
         .sidebar::-webkit-scrollbar {
-            width: 4px;
+            width: 4px; /* 极细的宽度 */
         }
+        
         .sidebar::-webkit-scrollbar-track {
-            background: transparent;
+            background: transparent; /* 轨道透明 */
         }
+        
         .sidebar::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.1); /* 默认半透明灰色 */
             border-radius: 10px;
         }
+        
         .sidebar::-webkit-scrollbar-thumb:hover {
-            background: var(--accent);
+            background: var(--accent); /* 鼠标悬停时变橙色，增加反馈感 */
         }
+        
+        /* 兼容 Firefox */
         .sidebar {
             scrollbar-width: thin;
             scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
         }
+
     </style>
 </head>
 <body>
@@ -159,15 +165,6 @@
         <p style="font-size:12px; opacity:0.6">当前：<span id="mode-text" style="color:var(--accent)">保持模式 (松开恢复)</span></p>
         <button id="modeBtn" class="action-btn active" onclick="toggleModMode()">切换为：点击开关</button>
 
-        <!-- 音色选择 -->
-        <div class="section-title">音色选择</div>
-        <select id="timbreSelect" class="action-btn" onchange="changeTimbre(this.value)" style="background: var(--sidebar-bg); color: white; border: 1px solid var(--border); outline: none;">
-            <option value="triangle" selected>🎹 默认钢琴 (三角波)</option>
-            <option value="sine">🎵 八音盒/长笛 (正弦波)</option>
-            <option value="sawtooth">🎻 电子弦乐 (锯齿波)</option>
-            <option value="square">👾 复古电玩 (方波)</option>
-        </select>
-
         <div class="section-title">功能键</div>
         <div class="mapping-row"><span>升/降八度</span><span class="key-tag">Alt / Space</span></div>
         <div class="mapping-row"><span>变调(♯/♭)</span><span class="key-tag">' / G</span></div>
@@ -176,9 +173,9 @@
         <button class="action-btn" onclick="document.getElementById('fileIn').click()">上传图片</button>
         <input type="file" id="fileIn" hidden accept="image/*" onchange="loadBg(this)">
         <button class="action-btn" onclick="resetBg()" style="background:none; border-style:dashed">还原默认</button>
-        
         <div class="section-title">更多信息</div>
         <a href="about.html" class="action-btn" style="text-decoration: none; display: block; text-align: center;">移动端</a>
+
     </div>
 </div>
 
@@ -223,21 +220,7 @@
 
     let octave = 0, modifier = 0;
     let modMode = 'hold'; // 'hold' (保持模式) 或 'toggle' (切换模式)
-    let timbre = 'triangle'; // 默认音色
-    
-    // 【安全加固 1】音频引擎不立即创建，避开本地 file:// 协议在加载阶段的安全沙箱拦截
-    let audioCtx = null; 
-    
-    // 强制与 HTML 下拉框当前实际选中的音色同步（防止浏览器刷新缓存导致变量不一致）
-    const selectEl = document.getElementById('timbreSelect');
-    if (selectEl) {
-        timbre = selectEl.value;
-    }
-    
-    function changeTimbre(val) {
-        timbre = val;
-    }
-
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const notes = [
         {f: 261.63, b: 'y', s: 'diamond'}, {f: 293.66, b: 'u', s: 'circle'}, {f: 329.63, b: 'i', s: 'circle'}, {f: 349.23, b: 'o', s: 'circle'}, {f: 392.00, b: 'p', s: 'circle'},
         {f: 440.00, b: 'h', s: 'circle'}, {f: 493.88, b: 'j', s: 'circle'}, {f: 523.25, b: 'k', s: 'diamond'}, {f: 587.33, b: 'l', s: 'circle'}, {f: 659.25, b: ';', s: 'circle'},
@@ -253,98 +236,21 @@
         const trigger = (e) => { e.preventDefault(); play(n.f, keyEl); };
         keyEl.addEventListener('mousedown', trigger);
         keyEl.addEventListener('touchstart', trigger);
-        
-        // 【安全加固 2】对 DOM 插入过程进行 null 值安全防护，确保环境错误不中断主渲染流程
-        const rowEl = document.getElementById('row' + rowIdx);
-        if (rowEl) {
-            rowEl.appendChild(keyEl);
-        }
+        document.getElementById('row' + rowIdx).appendChild(keyEl);
         keyMap[n.b] = keyEl;
     });
 
     function play(base, el) {
-        // 【安全加固 3】在用户第一次实际弹奏点击时，才动态尝试初始化音频上下文，并捕获任何安全拦截错误
-        if (!audioCtx) {
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            } catch (e) {
-                console.error("音频启动失败:", e);
-                alert("您当前是以本地文件(file://)形式打开。部分浏览器安全沙箱限制了本地音频运行。\n\n如点击后无声音，建议您尝试：\n1. 双击此文件，选择使用 Chrome 或 Firefox 浏览器打开。\n2. 或者将文件发布到 GitHub Pages 等免费服务器上在线运行。");
-                return;
-            }
-        }
-
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const freq = base * Math.pow(2, octave) * Math.pow(2, modifier / 12);
-        const now = audioCtx.currentTime;
-
-        if (timbre === 'triangle') {
-            // =======================================================
-            // 🎹 增强版钢琴音色：加法合成 + 琴槌瞬态敲击模拟
-            // =======================================================
-
-            // 1. 主琴弦音（基波：三角波）
-            const osc1 = audioCtx.createOscillator();
-            const g1 = audioCtx.createGain();
-            osc1.type = 'triangle';
-            osc1.frequency.setValueAtTime(freq, now);
-            g1.gain.setValueAtTime(0.35, now);
-            g1.gain.exponentialRampToValueAtTime(0.001, now + 1.4); 
-            osc1.connect(g1);
-            g1.connect(audioCtx.destination);
-            osc1.start(); // 不传参数，避开挂起状态下的时间解析错误
-            osc1.stop(now + 1.4);
-
-            // 2. 琴弦高频共鸣（泛音：正弦波，高八度）
-            const osc2 = audioCtx.createOscillator();
-            const g2 = audioCtx.createGain();
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(freq * 2, now); 
-            g2.gain.setValueAtTime(0.12, now); 
-            g2.gain.exponentialRampToValueAtTime(0.001, now + 0.7); 
-            osc2.connect(g2);
-            g2.connect(audioCtx.destination);
-            osc2.start(); 
-            osc2.stop(now + 0.7);
-
-            // 3. 琴槌击弦瞬态模拟（极短的高频金属敲击声）
-            const oscClick = audioCtx.createOscillator();
-            const gClick = audioCtx.createGain();
-            oscClick.type = 'sine';
-            oscClick.frequency.setValueAtTime(freq * 3.5, now); 
-            gClick.gain.setValueAtTime(0.18, now);
-            gClick.gain.exponentialRampToValueAtTime(0.001, now + 0.04); 
-            oscClick.connect(gClick);
-            gClick.connect(audioCtx.destination);
-            oscClick.start(); 
-            oscClick.stop(now + 0.05);
-
-        } else {
-            // =======================================================
-            // 其他基础合成器音色保持单振荡器
-            // =======================================================
-            const osc = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
-            osc.type = timbre;
-            osc.frequency.setValueAtTime(freq, now);
-
-            let volume = 0.4;
-            let decay = 1.2;
-            if (timbre === 'square' || timbre === 'sawtooth') {
-                volume = 0.12; 
-                decay = 1.0;   
-            } else if (timbre === 'sine') {
-                volume = 0.55; 
-                decay = 1.4;   
-            }
-
-            g.gain.setValueAtTime(volume, now);
-            g.gain.exponentialRampToValueAtTime(0.001, now + decay);
-            osc.connect(g); g.connect(audioCtx.destination);
-            osc.start(); 
-            osc.stop(now + decay);
-        }
-
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 1.2);
         el.classList.add('active');
         setTimeout(() => el.classList.remove('active'), 100);
     }
@@ -377,31 +283,41 @@
         document.getElementById('mode-text').innerText = isHold ? "保持模式 (松开恢复)" : "开关模式 (点击切换)";
         document.getElementById('modeBtn').innerText = isHold ? "切换为：点击开关" : "切换为：保持模式";
         document.getElementById('mode-status').innerText = isHold ? "保持" : "开关";
-        setMod(0);
+        setMod(0); // 切换模式时重置变调
     }
 
     function loadBg(input) {
-        if (input.files && input.files[0]) {
-            const file = input.files[0];
-            if (file.size > 10 * 1024 * 1024) {
-                alert("图片太大了，请选择 10MB 以内的图片");
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const bgLayer = document.getElementById('bgLayer');
-                bgLayer.style.backgroundImage = `url(${e.target.result})`;
-                bgLayer.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-            input.value = '';
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        
+        // 增加文件大小简单检查（可选，防止超大图导致卡顿）
+        if (file.size > 10 * 1024 * 1024) {
+            alert("图片太大了，请选择 10MB 以内的图片");
+            return;
         }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const bgLayer = document.getElementById('bgLayer');
+            // 确保移除可能干扰的渐变背景，直接应用图片
+            bgLayer.style.backgroundImage = `url(${e.target.result})`;
+            
+            // 修复某些浏览器下 z-index 渲染问题
+            bgLayer.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+        
+        // 【核心修复】上传完成后清空 input 的值
+        // 这样如果你删除了背景，再次上传同一张图时，onchange 依然会触发
+        input.value = '';
     }
+}
 
     function resetBg() {
         const bgLayer = document.getElementById('bgLayer');
+        // 还原为默认的星空渐变色
         bgLayer.style.backgroundImage = "radial-gradient(circle at center, #1b2735 0%, #090a0f 100%)";
+        // 同时清空文件选择器，防止逻辑冲突
         document.getElementById('fileIn').value = '';
     }
 
@@ -423,24 +339,19 @@
         }
     };
 
-    // 【安全加固 4】对 Canvas 画布也做好防护，避免因获取失败导致代码崩溃
     const canvas = document.getElementById('starCanvas');
-    if (canvas) {
-        const ctx = canvas.getContext('2d');
-        let stars = [];
-        function init() {
-            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-            stars = Array.from({length: 100}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*1.5, sp: Math.random()*0.05+0.01}));
-        }
-        function animate() {
-            ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle = "rgba(255,255,255,0.4)";
-            stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); s.y -= s.sp; if(s.y < 0) s.y = canvas.height; });
-            requestAnimationFrame(animate);
-        }
-        window.addEventListener('resize', init);
-        init();
-        animate();
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+    function init() {
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        stars = Array.from({length: 100}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*1.5, sp: Math.random()*0.05+0.01}));
     }
+    function animate() {
+        ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle = "rgba(255,255,255,0.4)";
+        stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); s.y -= s.sp; if(s.y < 0) s.y = canvas.height; });
+        requestAnimationFrame(animate);
+    }
+    window.onresize = init; init(); animate();
 </script>
 </body>
 </html>
