@@ -224,7 +224,9 @@
     let octave = 0, modifier = 0;
     let modMode = 'hold'; // 'hold' (保持模式) 或 'toggle' (切换模式)
     let timbre = 'triangle'; // 默认音色
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // 【安全加固 1】音频引擎不立即创建，避开本地 file:// 协议在加载阶段的安全沙箱拦截
+    let audioCtx = null; 
     
     // 强制与 HTML 下拉框当前实际选中的音色同步（防止浏览器刷新缓存导致变量不一致）
     const selectEl = document.getElementById('timbreSelect');
@@ -251,11 +253,27 @@
         const trigger = (e) => { e.preventDefault(); play(n.f, keyEl); };
         keyEl.addEventListener('mousedown', trigger);
         keyEl.addEventListener('touchstart', trigger);
-        document.getElementById('row' + rowIdx).appendChild(keyEl);
+        
+        // 【安全加固 2】对 DOM 插入过程进行 null 值安全防护，确保环境错误不中断主渲染流程
+        const rowEl = document.getElementById('row' + rowIdx);
+        if (rowEl) {
+            rowEl.appendChild(keyEl);
+        }
         keyMap[n.b] = keyEl;
     });
 
     function play(base, el) {
+        // 【安全加固 3】在用户第一次实际弹奏点击时，才动态尝试初始化音频上下文，并捕获任何安全拦截错误
+        if (!audioCtx) {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.error("音频启动失败:", e);
+                alert("您当前是以本地文件(file://)形式打开。部分浏览器安全沙箱限制了本地音频运行。\n\n如点击后无声音，建议您尝试：\n1. 双击此文件，选择使用 Chrome 或 Firefox 浏览器打开。\n2. 或者将文件发布到 GitHub Pages 等免费服务器上在线运行。");
+                return;
+            }
+        }
+
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const freq = base * Math.pow(2, octave) * Math.pow(2, modifier / 12);
         const now = audioCtx.currentTime;
@@ -274,7 +292,7 @@
             g1.gain.exponentialRampToValueAtTime(0.001, now + 1.4); 
             osc1.connect(g1);
             g1.connect(audioCtx.destination);
-            osc1.start(); // 不传参数防止 initial suspended 0 时间冲突
+            osc1.start(); // 不传参数，避开挂起状态下的时间解析错误
             osc1.stop(now + 1.4);
 
             // 2. 琴弦高频共鸣（泛音：正弦波，高八度）
@@ -405,19 +423,24 @@
         }
     };
 
+    // 【安全加固 4】对 Canvas 画布也做好防护，避免因获取失败导致代码崩溃
     const canvas = document.getElementById('starCanvas');
-    const ctx = canvas.getContext('2d');
-    let stars = [];
-    function init() {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        stars = Array.from({length: 100}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*1.5, sp: Math.random()*0.05+0.01}));
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        let stars = [];
+        function init() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            stars = Array.from({length: 100}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*1.5, sp: Math.random()*0.05+0.01}));
+        }
+        function animate() {
+            ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle = "rgba(255,255,255,0.4)";
+            stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); s.y -= s.sp; if(s.y < 0) s.y = canvas.height; });
+            requestAnimationFrame(animate);
+        }
+        window.addEventListener('resize', init);
+        init();
+        animate();
     }
-    function animate() {
-        ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle = "rgba(255,255,255,0.4)";
-        stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); s.y -= s.sp; if(s.y < 0) s.y = canvas.height; });
-        requestAnimationFrame(animate);
-    }
-    window.onresize = init; init(); animate();
 </script>
 </body>
 </html>
