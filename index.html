@@ -26,13 +26,12 @@
              position: absolute;
              top: 0; left: 0;
              width: 100%; height: 100%;
-             /* 核心修复：确保图片覆盖模式 */
              background-size: cover; 
              background-position: center;
              background-repeat: no-repeat;
              background-attachment: fixed;
              z-index: -1;
-             transition: background-image 0.8s ease-in-out; /* 让切换更丝滑 */
+             transition: background-image 0.8s ease-in-out;
         }
         #starCanvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
 
@@ -84,7 +83,7 @@
         }
         .status-display b { color: var(--accent); margin: 0 5px; }
 
-        /* 钢琴区 - 尺寸 120px */
+        /* 钢琴区 */
         .piano-grid {
             background: rgba(255,255,255,0.05); backdrop-filter: blur(20px);
             padding: 40px; border-radius: 45px; border: 1px solid var(--border);
@@ -121,30 +120,25 @@
 
         @media (max-width: 800px) or (max-height: 800px) { .piano-grid { transform: scale(0.7); } }
         @media (max-width: 600px) or (max-height: 600px) { .piano-grid { transform: scale(0.5); } }
+        
         /* 自定义侧边栏滚动条 */
         .sidebar::-webkit-scrollbar {
-            width: 4px; /* 极细的宽度 */
+            width: 4px;
         }
-        
         .sidebar::-webkit-scrollbar-track {
-            background: transparent; /* 轨道透明 */
+            background: transparent;
         }
-        
         .sidebar::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1); /* 默认半透明灰色 */
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
         }
-        
         .sidebar::-webkit-scrollbar-thumb:hover {
-            background: var(--accent); /* 鼠标悬停时变橙色，增加反馈感 */
+            background: var(--accent);
         }
-        
-        /* 兼容 Firefox */
         .sidebar {
             scrollbar-width: thin;
             scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
         }
-
     </style>
 </head>
 <body>
@@ -165,7 +159,7 @@
         <p style="font-size:12px; opacity:0.6">当前：<span id="mode-text" style="color:var(--accent)">保持模式 (松开恢复)</span></p>
         <button id="modeBtn" class="action-btn active" onclick="toggleModMode()">切换为：点击开关</button>
 
-        <!-- 新增：音色选择 -->
+        <!-- 音色选择 -->
         <div class="section-title">音色选择</div>
         <select id="timbreSelect" class="action-btn" onchange="changeTimbre(this.value)" style="background: var(--sidebar-bg); color: white; border: 1px solid var(--border); outline: none;">
             <option value="triangle" selected>🎹 默认钢琴 (三角波)</option>
@@ -175,7 +169,6 @@
         </select>
 
         <div class="section-title">功能键</div>
-        
         <div class="mapping-row"><span>升/降八度</span><span class="key-tag">Alt / Space</span></div>
         <div class="mapping-row"><span>变调(♯/♭)</span><span class="key-tag">' / G</span></div>
         
@@ -183,9 +176,9 @@
         <button class="action-btn" onclick="document.getElementById('fileIn').click()">上传图片</button>
         <input type="file" id="fileIn" hidden accept="image/*" onchange="loadBg(this)">
         <button class="action-btn" onclick="resetBg()" style="background:none; border-style:dashed">还原默认</button>
+        
         <div class="section-title">更多信息</div>
         <a href="about.html" class="action-btn" style="text-decoration: none; display: block; text-align: center;">移动端</a>
-
     </div>
 </div>
 
@@ -230,13 +223,19 @@
 
     let octave = 0, modifier = 0;
     let modMode = 'hold'; // 'hold' (保持模式) 或 'toggle' (切换模式)
+    let timbre = 'triangle'; // 默认钢琴音色
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function changeTimbre(val) {
+        timbre = val;
+    }
+
     const notes = [
         {f: 261.63, b: 'y', s: 'diamond'}, {f: 293.66, b: 'u', s: 'circle'}, {f: 329.63, b: 'i', s: 'circle'}, {f: 349.23, b: 'o', s: 'circle'}, {f: 392.00, b: 'p', s: 'circle'},
         {f: 440.00, b: 'h', s: 'circle'}, {f: 493.88, b: 'j', s: 'circle'}, {f: 523.25, b: 'k', s: 'diamond'}, {f: 587.33, b: 'l', s: 'circle'}, {f: 659.25, b: ';', s: 'circle'},
         {f: 698.46, b: 'n', s: 'circle'}, {f: 783.99, b: 'm', s: 'circle'}, {f: 880.00, b: ',', s: 'circle'}, {f: 987.77, b: '.', s: 'circle'}, {f: 1046.50, b: '/', s: 'diamond'}
     ];
-    
+
     const keyMap = {};
     notes.forEach((n, i) => {
         const rowIdx = Math.floor(i / 5) + 1;
@@ -249,27 +248,25 @@
         document.getElementById('row' + rowIdx).appendChild(keyEl);
         keyMap[n.b] = keyEl;
     });
-    function changeTimbre(val) {
-        timbre = val;
-    }
+
     function play(base, el) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const freq = base * Math.pow(2, octave) * Math.pow(2, modifier / 12);
         const osc = audioCtx.createOscillator();
         const g = audioCtx.createGain();
         
-        osc.type = timbre; // 修改：动态使用用户选择的音色
+        osc.type = timbre; // 使用选中的波形音色
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
         
-        // 新增：根据不同波形微调音量，防止复古电玩或弦乐音色破音
+        // 微调不同波形下的音量和衰减时间，防止锯齿波/方波爆音破音
         let volume = 0.4;
         let decay = 1.2;
         if (timbre === 'square' || timbre === 'sawtooth') {
-            volume = 0.12; // 降低锯齿波与方波的音量
-            decay = 1.0;   // 稍微缩短余音
+            volume = 0.12; 
+            decay = 1.0;   
         } else if (timbre === 'sine') {
-            volume = 0.55; // 适当调大正弦波（八音盒）的音量
-            decay = 1.4;   // 稍微拉长余音，听起来更空灵
+            volume = 0.55; 
+            decay = 1.4;   
         }
 
         g.gain.setValueAtTime(volume, audioCtx.currentTime);
@@ -279,6 +276,7 @@
         el.classList.add('active');
         setTimeout(() => el.classList.remove('active'), 100);
     }
+
     function changeOct(v) { 
         octave += v; 
         const t = octave > 0 ? '+'+octave : octave;
@@ -307,41 +305,31 @@
         document.getElementById('mode-text').innerText = isHold ? "保持模式 (松开恢复)" : "开关模式 (点击切换)";
         document.getElementById('modeBtn').innerText = isHold ? "切换为：点击开关" : "切换为：保持模式";
         document.getElementById('mode-status').innerText = isHold ? "保持" : "开关";
-        setMod(0); // 切换模式时重置变调
+        setMod(0);
     }
 
     function loadBg(input) {
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-        
-        // 增加文件大小简单检查（可选，防止超大图导致卡顿）
-        if (file.size > 10 * 1024 * 1024) {
-            alert("图片太大了，请选择 10MB 以内的图片");
-            return;
-        }
+        if (input.files && input.files[0]) {
+            const file = input.files[0];
+            if (file.size > 10 * 1024 * 1024) {
+                alert("图片太大了，请选择 10MB 以内的图片");
+                return;
+            }
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const bgLayer = document.getElementById('bgLayer');
-            // 确保移除可能干扰的渐变背景，直接应用图片
-            bgLayer.style.backgroundImage = `url(${e.target.result})`;
-            
-            // 修复某些浏览器下 z-index 渲染问题
-            bgLayer.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-        
-        // 【核心修复】上传完成后清空 input 的值
-        // 这样如果你删除了背景，再次上传同一张图时，onchange 依然会触发
-        input.value = '';
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const bgLayer = document.getElementById('bgLayer');
+                bgLayer.style.backgroundImage = `url(${e.target.result})`;
+                bgLayer.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            input.value = '';
+        }
     }
-}
 
     function resetBg() {
         const bgLayer = document.getElementById('bgLayer');
-        // 还原为默认的星空渐变色
         bgLayer.style.backgroundImage = "radial-gradient(circle at center, #1b2735 0%, #090a0f 100%)";
-        // 同时清空文件选择器，防止逻辑冲突
         document.getElementById('fileIn').value = '';
     }
 
